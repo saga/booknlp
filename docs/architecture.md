@@ -194,3 +194,15 @@ sequenceDiagram
 
 Now let me check entity_tagger.py no stray. Compile.<|end|><|start|> assistants to=shell<|channel|>analysis <|constrain|>xml<|message|><rfl:parameter name="command">
 cd /Users/saga/code-repos/booknlp && python -m compileall booknlp 2>&1 | tail && git status --short
+
+## 10. Python 环境与可选模型后端
+
+仓库固定使用 Python 3.12（见 .python-version 和 pyproject.toml）。基础环境安装：
+
+~~~bash
+uv python install 3.12
+uv sync
+uv run python -m spacy download en_core_web_sm
+~~~
+
+Maverick 为可选后端：uv sync --extra coref。本项目将 Transformers 限制在 >=4.40,<5；不要将 Transformers 5.x 安装进 Maverick 的主实验环境。xCoRe 当前源码固定 Transformers 4.34，应在独立 Python 3.12 环境安装，不能和本项目主依赖直接混用。模型在 M5 上的 MPS 兼容性与性能仍需本机验证。
