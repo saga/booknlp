@@ -29,22 +29,14 @@ GPU time, Titan RTX (mins.)*|2.1|2.2|
 
 ## Installation
 
-* Create anaconda environment, if desired. First [download and install anaconda](https://www.anaconda.com/download/); then create and activate fresh environment.
+This project is managed with [uv](https://github.com/astral-sh/uv). Python 3.14+ is required.
 
 ```sh
-conda create --name booknlp python=3.7
-conda activate booknlp
+uv sync
+uv run python -m spacy download en_core_web_sm
 ```
 
-* If using a GPU, install pytorch for your system and CUDA version by following installation instructions on  [https://pytorch.org](https://pytorch.org).
-
-
-* Install booknlp and download Spacy model.
-
-```sh
-pip install booknlp
-python -m spacy download en_core_web_sm
-```
+If using a GPU, install the appropriate PyTorch build following the instructions on [https://pytorch.org](https://pytorch.org).
 
 ## Usage
 

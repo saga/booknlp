@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+"""
+引语说话人归属的 BERT 模型封装（QuotationAttribution）。
+
+对 NLP 小白的解释：
+- 该类加载训练好的 BERTSpeakerID 模型。
+- tag()：为每个引语构造上下文表示，运行模型，选择最可能的说话人实体。
+"""
 import torch
 import re
 from booknlp.english.speaker_attribution import BERTSpeakerID
@@ -17,7 +25,7 @@ class QuotationAttribution:
 		base_model=re.sub(".model", "", base_model)
 
 		self.model = BERTSpeakerID(base_model=base_model)
-		self.model.load_state_dict(torch.load(modelFile, map_location=device))
+		self.model.load_state_dict(torch.load(modelFile, map_location=device, weights_only=False), strict=False)
 		self.model.to(device)
 		self.model.eval()
 

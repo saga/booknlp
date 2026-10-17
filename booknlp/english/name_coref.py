@@ -1,13 +1,22 @@
+# -*- coding: utf-8 -*-
 """
+人名聚类模块（NameCoref）。
+
+功能：把指称同一人的不同专有名（Tom / Tom Sawyer / Mr. Sawyer）聚成一个实体 ID。
+
+对 NLP 小白的解释：
+- 共指（coreference）：文本中不同表述指向同一实体，如 "Tom"、"Tom Sawyer"、"he" 都指 Tom。
+- 这里先做"人名聚类"：只处理专有名（PROP PER），把名字变体归并。
+- 算法：枚举名字的所有子排列（Tom、Sawyer、Tom Sawyer...）作为键，再按"最近出现 + 频次"给每个 mention 分配实体 ID，并合并高度重叠的簇。
+
 This code performs name clustering on PROP PER mentions, grouping together different proper names only that refer to the same individual
 e.g., Tom, Tom Saywer, Mr. Tom Sawyer, Mr. Sawyer -> TOM SAYWER
-
 """
 
 from collections import Counter
 import sys
 import itertools
-import pkg_resources
+import os
 
 class NameCoref:
 
@@ -443,7 +452,7 @@ class NameCoref:
 
 if __name__ == "__main__":
 
-	aliasFile = pkg_resources.resource_filename(__name__, "data/aliases.txt")
+	aliasFile = os.path.join(os.path.dirname(__file__), "data", "aliases.txt")
 	resolver=NameCoref(aliasFile)
 	resolver.process(sys.argv[1])
 

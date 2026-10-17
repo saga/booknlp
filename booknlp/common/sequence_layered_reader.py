@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+"""
+序列分层读取模块（sequence_layered_reader）。
+
+对 NLP 小白的解释：
+- 读取 tagset 文件，构建标签<->id 映射。
+- 为序列标注任务生成 batch 数据。
+"""
 import os
 
 def read_tagset(filename):

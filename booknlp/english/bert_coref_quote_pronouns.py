@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+"""
+BERT 共指模型实现（BERTCorefTagger）。
+
+对 NLP 小白的解释：
+- 这是共指任务的神经网络：BERT 编码文本，计算 mention 对之间的分数，决定共指。
+- 支持代词共指（pronominal）与全共指（full）模式。
+"""
 import re
 import os
 from collections import Counter
@@ -36,9 +44,9 @@ class BERTCorefTagger(nn.Module):
 
 		modelName=base_model
 		modelName=re.sub("^coref_", "", modelName)
-		modelName=re.sub("-v\d.*$", "", modelName)
+		modelName=re.sub(r"-v\d.*$", "", modelName)
 
-		matcher=re.search(".*-(\d+)_H-(\d+)_A-.*", modelName)
+		matcher=re.search(r".*-(\d+)_H-(\d+)_A-.*", modelName)
 		bert_dim=0
 		modelSize=0
 
@@ -1017,7 +1025,7 @@ class BERTCorefTagger(nn.Module):
 					wid=0
 
 					docid=None
-					matcher=re.match("#begin document \((.*)\); part (.*)$", line.rstrip())
+					matcher=re.match(r"#begin document \((.*)\); part (.*)$", line.rstrip())
 					if matcher != None:
 						docid=matcher.group(1)
 						partID=matcher.group(2)
@@ -1063,7 +1071,7 @@ class BERTCorefTagger(nn.Module):
 
 				else:
 
-					parts=re.split("\s+", line.rstrip())
+					parts=re.split(r"\s+", line.rstrip())
 
 					if len(parts) < 2:
 						sid+=1
@@ -1143,15 +1151,15 @@ class BERTCorefTagger(nn.Module):
 
 					for c in coref:
 						if c.startswith("(") and c.endswith(")"):
-							c=re.sub("\(", "", c)
-							c=int(re.sub("\)", "", c))
+							c=re.sub(r"\(", "", c)
+							c=int(re.sub(r"\)", "", c))
 
 							ents[(tid,tid)]=Entity(tid, tid, in_quote=inQuote[0], quote_eid=inQuote[1], quote_id=len(adjusted_quotes), entity_id=c, text=' '.join(sent[tid:tid+1]))
 							ents[(tid,tid)].global_start=global_id
 							ents[(tid,tid)].global_end=global_id
 							
 						elif c.startswith("("):
-							c=int(re.sub("\(", "", c))
+							c=int(re.sub(r"\(", "", c))
 
 							if c not in open_ents:
 								open_ents[c]=[]
@@ -1159,7 +1167,7 @@ class BERTCorefTagger(nn.Module):
 							open_count+=1
 
 						elif c.endswith(")"):
-							c=int(re.sub("\)", "", c))
+							c=int(re.sub(r"\)", "", c))
 
 							assert c in open_ents
 
@@ -1175,8 +1183,8 @@ class BERTCorefTagger(nn.Module):
 					for c in ner:
 
 						if c.startswith("(") and c.endswith(")"):
-							c=re.sub("\(", "", c)
-							c=(re.sub("\)", "", c))
+							c=re.sub(r"\(", "", c)
+							c=(re.sub(r"\)", "", c))
 
 							if (tid, tid) in ents:
 								ner_parts=c.split("_")
@@ -1184,14 +1192,14 @@ class BERTCorefTagger(nn.Module):
 								ents[(tid, tid)].proper=ner_parts[0]
 
 						elif c.startswith("("):
-							c=(re.sub("\(", "", c))
+							c=(re.sub(r"\(", "", c))
 
 							if c not in open_named_ents:
 								open_named_ents[c]=[]
 							open_named_ents[c].append(tid)
 
 						elif c.endswith(")"):
-							c=(re.sub("\)", "", c))
+							c=(re.sub(r"\)", "", c))
 
 							assert c in open_named_ents
 

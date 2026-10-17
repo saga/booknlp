@@ -1,3 +1,15 @@
+# -*- coding: utf-8 -*-
+"""
+BERT 多任务标注模型（Tagger）。
+
+对 NLP 小白的解释：
+- 这是 BookNLP 的核心神经网络：基于 BERT 的序列标注模型。
+- 支持三种任务：
+  1. 实体识别（分层 NER，3 层 LSTM+CRF，支持嵌套实体）。
+  2. 事件检测（flat 分类器，二分类 EVENT/O）。
+  3. 超义标注（LSTM+CRF，融合 WordNet 首义 embedding）。
+- 分层 NER 思路：第一层识别最内层实体；把同一实体的词合并后喂给第二层识别外层；再合并喂给第三层。这样可以识别嵌套实体。
+"""
 import sys
 import re
 import math
@@ -18,8 +30,8 @@ class Tagger(nn.Module):
 
 		modelName=base_model
 		modelName=re.sub("^entities_", "", modelName)
-		modelName=re.sub("-v\d.*$", "", modelName)
-		matcher=re.search(".*-(\d+)_H-(\d+)_A-.*", modelName)
+		modelName=re.sub(r"-v\d.*$", "", modelName)
+		matcher=re.search(r".*-(\d+)_H-(\d+)_A-.*", modelName)
 		bert_dim=0
 		modelSize=0
 		self.num_layers=0
@@ -814,7 +826,7 @@ class Tagger(nn.Module):
 		ordered_events=[]
 		preds_in_order=events_in_order=supersense_preds_in_order=None
 
-		with torch.no_grad():
+		with torch.inference_mode():
 	
 			for b in range(len(batched_data)):
 				all_tags1, all_tags2, all_tags3, event_logits, all_supersense_tags1=self.predict_all(batched_wn[b], batched_data[b], attention_mask=batched_mask[b], transforms=batched_transforms[b], lens=batched_orig_token_lens[b], doEvent=doEvent, doEntities=doEntities, doSS=doSS)
@@ -889,7 +901,7 @@ class Tagger(nn.Module):
 		c=0
 		ordered_preds=[]
 
-		with torch.no_grad():
+		with torch.inference_mode():
 	
 			for b in range(len(batched_data)):
 				all_tags1, all_tags2, all_tags3=self.predict(batched_data[b], attention_mask=batched_mask[b], transforms=batched_transforms[b], lens=batched_orig_token_lens[b])
@@ -920,7 +932,7 @@ class Tagger(nn.Module):
 
 		self.eval()
 
-		with torch.no_grad():
+		with torch.inference_mode():
 			preds={}
 			golds={}
 			c=0
@@ -951,7 +963,7 @@ class Tagger(nn.Module):
 
 		self.eval()
 
-		with torch.no_grad():
+		with torch.inference_mode():
 			preds={}
 			golds={}
 			c=0
@@ -992,7 +1004,7 @@ class Tagger(nn.Module):
 
 		self.eval()
 
-		with torch.no_grad():
+		with torch.inference_mode():
 
 			ordered_preds=[]
 
@@ -1022,7 +1034,7 @@ class Tagger(nn.Module):
 
 	def tagFlat(self, batched_sents, batched_data, batched_mask, batched_transforms, batched_orig_token_lens, ordering):
 		
-		with torch.no_grad():
+		with torch.inference_mode():
 
 			c=0
 			ordered_preds=[]

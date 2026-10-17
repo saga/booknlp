@@ -1,226 +1,245 @@
+# -*- coding: utf-8 -*-
+"""
+实体标注器模块（LitBankEntityTagger）。
+
+本模块封装了基于 BERT 的多任务标注模型 `Tagger`，提供：
+- 实体识别（分层 NER，支持嵌套实体）
+- 事件检测（flat 二分类）
+- 超义标注（supersense，融合 WordNet 首义）
+
+对 NLP 小白的解释：
+- NER（命名实体识别）：找出文本中的人名、地名、机构等，并给每个词打标签。
+- BIO 标注：B-XXX 表示实体开始，I-XXX 表示实体内部，O 表示非实体。
+- 嵌套实体：如 "her sister" 中 "her" 和 "her sister" 都是实体，需要多层标注。
+- 超义（supersense）：WordNet 的粗粒度语义类别，如 noun.person、verb.motion。
+"""
+
 from booknlp.english.tagger import Tagger
 import torch
 import re
+import os
 import booknlp.common.layered_reader as layered_reader
 import booknlp.common.sequence_layered_reader as sequence_layered_reader
-import pkg_resources
+
 
 class LitBankEntityTagger:
-	def __init__(self, model_file, model_tagset):
+    """封装 Tagger 模型，对外提供 tag(tokens) 接口。"""
 
-		device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-		self.tagset=sequence_layered_reader.read_tagset(model_tagset)
-		supersenseTagset = pkg_resources.resource_filename(__name__, "data/supersense.tagset")
+    def __init__(self, model_file, model_tagset):
+        # 选择 GPU/CPU
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # 读取实体标签集（BIO 标签）
+        self.tagset = sequence_layered_reader.read_tagset(model_tagset)
+        # 读取超义标签集
+        supersenseTagset = os.path.join(os.path.dirname(__file__), "data", "supersense.tagset")
+        self.supersense_tagset = sequence_layered_reader.read_tagset(supersenseTagset)
+        # 从模型文件名推断基础 BERT 模型名（如 google/bert_uncased_L-6_H-768_A-12）
+        base_model = re.sub("google_bert", "google/bert", model_file.split("/")[-1])
+        base_model = re.sub(".model", "", base_model)
 
-		self.supersense_tagset=sequence_layered_reader.read_tagset(supersenseTagset)
-		base_model=re.sub("google_bert", "google/bert", model_file.split("/")[-1])
-		base_model=re.sub(".model", "", base_model)
+        # 构建 Tagger：freeze_bert=False 表示微调 BERT；tagset_flat 用于事件二分类
+        self.model = Tagger(freeze_bert=False, base_model=base_model, tagset_flat={"EVENT": 1, "O": 1}, supersense_tagset=self.supersense_tagset, tagset=self.tagset, device=device)
 
-		self.model = Tagger(freeze_bert=False, base_model=base_model, tagset_flat={"EVENT":1, "O":1}, supersense_tagset=self.supersense_tagset, tagset=self.tagset, device=device)
+        self.model.to(device)
+        # 加载训练好的权重
+        self.model.load_state_dict(torch.load(model_file, map_location=device, weights_only=False), strict=False)
+        # 读取 WordNet 首义映射（用于超义）
+        wnsFile = os.path.join(os.path.dirname(__file__), "data", "wordnet.first.sense")
+        self.wns = self.read_wn(wnsFile)
 
-		self.model.to(device)
-		self.model.load_state_dict(torch.load(model_file, map_location=device))
-		wnsFile = pkg_resources.resource_filename(__name__, "data/wordnet.first.sense")
-		self.wns=self.read_wn(wnsFile)
+    def read_wn(self, filename):
+        """读取 WordNet 首义文件：word<TAB>pos<TAB>sense_id -> 字典。"""
+        wns = {}
+        with open(filename) as file:
+            for line in file:
+                cols = line.rstrip().split("\t")
+                word = cols[0]
+                pos = cols[1]
+                wn = int(cols[2].split(" ")[0])
+                wns["%s.%s" % (word, pos)] = wn
+        return wns
 
-	def read_wn(self, filename):
-		wns={}
-		with open(filename) as file:
-			for line in file:
-				cols=line.rstrip().split("\t")
-				word=cols[0]
-				pos=cols[1]
-				wn=int(cols[2].split(" ")[0])
-				wns["%s.%s" % (word, pos)]=wn
-		return wns
+    def get_wn(self, supersense_batched_sents):
+        """为每个超义 batch 计算 WordNet sense id 序列（与 token 对齐）。"""
+        wn_batches = []
 
-	def get_wn(self, supersense_batched_sents):
+        for idx, b_sent in enumerate(supersense_batched_sents):
+            # 计算该 batch 的最大句长，用于 padding
+            max_len = 0
+            for sent in b_sent:
+                if sent is not None:
+                    if len(sent) > max_len:
+                        max_len = len(sent)
 
+            wn_senses = []
 
-		wn_batches=[]
+            for sent in b_sent:
+                wn = []
+                if sent is None:
+                    continue
 
-		for idx, b_sent in enumerate(supersense_batched_sents):
+                for word in sent:
+                    if word is None:
+                        wn.append(0)
+                    else:
+                        text = word.text
+                        pos = word.pos
+                        if pos == "NOUN":
+                            pos = "n"
+                        elif pos == "VERB":
+                            pos = "v"
+                        term = text.split(" ")[-1].lower()
+                        key = "%s.%s" % (term, pos)
+                        if key in self.wns:
+                            wn.append(self.wns[key])
+                        else:
+                            wn.append(1)
 
-			max_len=0
-			for sent in b_sent:
-				if sent is not None:
-					if len(sent) > max_len:
-						max_len=len(sent)
+                # padding 到 max_len
+                for val in range(len(sent), max_len):
+                    wn.append(0)
+                wn_senses.append(wn)
 
-			wn_senses=[]
+            wn_senses = torch.LongTensor(wn_senses)
+            wn_batches.append(wn_senses)
+        return wn_batches
 
-			for sent in b_sent:
+    def tag(self, toks, doEvent=True, doEntities=True, doSS=True):
+        """对 Token 列表运行 NER/事件/超义标注，返回字典。"""
+        max_sentence_length = 500
 
-				wn=[]
-				if sent is None:
-					continue
+        entities = []
+        supersense_entities = []
 
-				for word in sent:
+        batch_size = 32
 
-					if word is None:
-						wn.append(0)
-					else:
+        # 1) 按句子切分 token，并控制单句长度（BERT 最大 512）
+        sents = []
+        o_sents = []
+        sent = []
+        o_sent = []
+        lastSid = None
 
-						text=word.text
-						pos=word.pos
-						if pos == "NOUN":
-							pos="n"
-						elif pos == "VERB":
-							pos="v"
-						term=text.split(" ")[-1].lower()
-						key="%s.%s" % (term, pos)
-						if key in self.wns:
-							wn.append(self.wns[key])
-						else:
-							wn.append(1)
+        length = 0
 
-				for val in range(len(sent), max_len):
-					wn.append(0)
-				wn_senses.append(wn)
+        for tok in toks:
+            wptok = tok.text
+            # 大小写敏感：BERT 为 uncased，用 [CAP] 标记大写
+            if wptok[0].lower() != wptok[0]:
+                wptok = "[CAP] " + wptok.lower()
 
-			wn_senses=torch.LongTensor(wn_senses)
-			wn_batches.append(wn_senses)
-		return wn_batches
+            toks = self.model.tokenizer.tokenize(wptok)
+            if lastSid is not None and (tok.sentence_id != lastSid or length + len(toks) > max_sentence_length):
+                sents.append(sent)
+                o_sents.append(o_sent)
+                sent = []
+                o_sent = []
+                length = 0
 
-	def tag(self, toks, doEvent=True, doEntities=True, doSS=True):
+            sent.append(toks)
+            o_sent.append(tok)
 
-		max_sentence_length=500
+            lastSid = tok.sentence_id
+            length += len(toks)
 
-		entities=[]
-		supersense_entities=[]
+        sents.append(sent)
+        o_sents.append(o_sent)
 
-		batch_size=32
+        # 2) 把句子打包成 batch（控制总长度 < 500）
+        sentences = []
+        o_sentences = []
 
-		sents=[]
-		o_sents=[]
-		sent=[]
-		o_sent=[]
-		lastSid=None
+        max_sentence_length = 500
 
-		length=0
+        sentence = [["[CLS]"]]
 
-		for tok in toks:
+        o_sent = []
 
-			wptok=tok.text
-			# working with uncased BERT models, so add a special tag to denote capitalization
-			if wptok[0].lower() != wptok[0]:
-				wptok="[CAP] " + wptok.lower()
+        cur_length = 0
 
-			toks=self.model.tokenizer.tokenize(wptok)
-			if lastSid is not None and (tok.sentence_id != lastSid or length + len(toks) > max_sentence_length):
-				sents.append(sent)
-				o_sents.append(o_sent)
-				sent=[]
-				o_sent=[]
-				length=0
-			
-			sent.append(toks)
-			o_sent.append(tok)
+        for idx, sent in enumerate(sents):
+            sent_len = 0
+            for toks in sent:
+                sent_len += len(toks)
 
-			lastSid=tok.sentence_id
-			length+=len(toks)
-		
-		sents.append(sent)
-		o_sents.append(o_sent)
+            if sent_len + cur_length >= max_sentence_length:
+                sentence.append(["[SEP]"])
+                sentences.append(sentence)
+                o_sentences.append(o_sent)
+                sentence = [["[CLS]"]]
+                o_sent = []
+                cur_length = 0
 
+            cur_length += sent_len
 
-		sentences=[]
-		o_sentences=[]
+            sentence.extend(sent)
+            o_sent.extend(o_sents[idx])
 
-		max_sentence_length=500
+        if len(sentence) > 1:
+            sentence.append(["[SEP]"])
+            o_sentences.append(o_sent)
+            sentences.append(sentence)
 
-		sentence=[ ["[CLS]"] ]
+        sents = o_sentences
 
-		o_sent=[]
+        # 3) layered_reader 生成 BERT 输入 batch
+        batched_sents, batched_data, batched_mask, batched_transforms, batched_orig_token_lens, ordering, order_to_batch_map = layered_reader.get_batches(self.model, sentences, batch_size, self.tagset, training=False)
 
-		cur_length=0
+        # 4) 记录每个 batch 位置对应的原始 token（用于还原）
+        batch_pos = {}
+        for idx, ind in enumerate(ordering):
+            batch_id, batch_s, batch_position = order_to_batch_map[idx]
+            if batch_id not in batch_pos:
+                batch_pos[batch_id] = [None] * batch_s
+            batch_pos[batch_id][batch_position] = [None]
+            for tok in sents[ind]:
+                batch_pos[batch_id][batch_position].append(tok)
+            batch_pos[batch_id][batch_position].append(None)
 
-		for idx, sent in enumerate(sents):
+        batched_pos = [None] * len(batch_pos)
+        for i in range(len(batch_pos)):
+            batched_pos[i] = batch_pos[i]
 
-			sent_len=0
-			for toks in sent:
-				sent_len+=len(toks)
+        # 5) 计算 WordNet sense 批次
+        wn_batches = self.get_wn(batched_pos)
 
-			if sent_len + cur_length >= max_sentence_length:
-				sentence.append(["[SEP]"])
-				sentences.append(sentence)
-				o_sentences.append(o_sent)
-				sentence=[["[CLS]"]]
-				o_sent=[]
-				cur_length=0
+        # 6) 模型推理
+        preds_in_order, events_in_order, supersense_preds_in_order = self.model.tag_all(wn_batches, batched_sents, batched_data, batched_mask, batched_transforms, batched_orig_token_lens, ordering, doEvent=doEvent, doEntities=doEntities, doSS=doSS)
 
-			cur_length+=sent_len
+        return_vals = {}
 
-			sentence.extend(sent)
-			o_sent.extend(o_sents[idx])
+        # 7) 将预测还原为 (start_token, end_token, label, phrase)
+        if doEntities:
+            for idx, preds in enumerate(preds_in_order):
+                for tmp, label, start, end in preds:
+                    start_token = sents[idx][start].token_id
+                    end_token = sents[idx][end - 1].token_id
+                    phrase = ' '.join([x.text for x in sents[idx][start:end]])
+                    phraseEndToken = int(end_token)
+                    if phraseEndToken == -2:
+                        phraseEndToken = start_token
+                    entities.append((start_token, phraseEndToken, label, phrase))
+            return_vals["entities"] = entities
 
+        if doSS:
+            for idx, preds in enumerate(supersense_preds_in_order):
+                for tmp, label, start, end in preds:
+                    start_token = sents[idx][start].token_id
+                    end_token = sents[idx][end - 1].token_id
+                    phrase = ' '.join([x.text for x in sents[idx][start:end]])
+                    phraseEndToken = int(end_token)
+                    if phraseEndToken == -2:
+                        phraseEndToken = start_token
+                    supersense_entities.append((start_token, phraseEndToken, label, phrase))
+            return_vals["supersense"] = supersense_entities
 
-		if len(sentence) > 1:		
-			sentence.append(["[SEP]"])
-			o_sentences.append(o_sent)
-			sentences.append(sentence)
+        if doEvent:
+            events = {}
+            for idx, preds in enumerate(events_in_order):
+                for start in preds:
+                    start_token = sents[idx][start].token_id
+                    phrase = sents[idx][start].text
+                    events[start_token] = 1
+            return_vals["events"] = events
 
-		sents=o_sentences
-
-		batched_sents, batched_data, batched_mask, batched_transforms, batched_orig_token_lens, ordering, order_to_batch_map = layered_reader.get_batches(self.model, sentences, batch_size, self.tagset, training=False)
-		
-		batch_pos={}
-		for idx, ind in enumerate(ordering):
-			batch_id, batch_s, batch_position=order_to_batch_map[idx]
-			if batch_id not in batch_pos:
-				batch_pos[batch_id]=[None]*batch_s
-			batch_pos[batch_id][batch_position]=[None]
-			for tok in sents[ind]:
-				# print(tok)
-				batch_pos[batch_id][batch_position].append(tok)
-			batch_pos[batch_id][batch_position].append(None)
-
-		batched_pos=[None]*len(batch_pos)
-		for i in range(len(batch_pos)):
-			batched_pos[i]=batch_pos[i]
-
-		wn_batches=self.get_wn(batched_pos)
-
-		preds_in_order, events_in_order, supersense_preds_in_order=self.model.tag_all(wn_batches, batched_sents, batched_data, batched_mask, batched_transforms, batched_orig_token_lens, ordering, doEvent=doEvent, doEntities=doEntities, doSS=doSS)
-		
-		return_vals={}
-
-		if doEntities:
-			for idx, preds in enumerate(preds_in_order):
-				for tmp, label, start, end in preds:
-					start_token=sents[idx][start].token_id
-					end_token=sents[idx][end-1].token_id
-					phrase=' '.join([x.text for x in sents[idx][start:end]])
-					phraseEndToken=int(end_token)
-					if phraseEndToken == -2:
-						phraseEndToken=start_token
-					entities.append((start_token, phraseEndToken, label, phrase))
-			return_vals["entities"]=entities
-
-		if doSS:
-			for idx, preds in enumerate(supersense_preds_in_order):
-				for tmp, label, start, end in preds:
-					start_token=sents[idx][start].token_id
-					end_token=sents[idx][end-1].token_id
-					phrase=' '.join([x.text for x in sents[idx][start:end]])
-					phraseEndToken=int(end_token)
-					if phraseEndToken == -2:
-						phraseEndToken=start_token
-					supersense_entities.append((start_token, phraseEndToken, label, phrase))
-			return_vals["supersense"]=supersense_entities
-			
-		
-		if doEvent:
-			events={}
-			for idx, preds in enumerate(events_in_order):
-
-				for start in preds:
-					start_token=sents[idx][start].token_id
-					phrase=sents[idx][start].text
-					events[start_token]=1
-				return_vals["events"]=events
-
-		return return_vals
-
-
-
+        return return_vals

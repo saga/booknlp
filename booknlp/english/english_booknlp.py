@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+"""
+英文 BookNLP 主流水线（EnglishBookNLP）。
+
+对 NLP 小白的解释：
+- 这是整个英文处理流程的"总导演"：初始化各模型，按顺序调用，写出结果文件。
+- __init__：加载 spaCy、下载/加载 BERT 模型、解析 pipeline 参数。
+- process：读入文本，依次执行 spaCy -> 实体/事件/超义 -> 引语 -> 说话人 -> 人名聚类 -> 性别推断 -> 共指 -> 聚合 -> 写文件。
+"""
 import sys
 import spacy
 import copy
@@ -15,15 +24,14 @@ from collections import Counter
 from html import escape
 import time
 from pathlib import Path
-import urllib.request 
-import pkg_resources
+import urllib.request
 import torch
 
 class EnglishBookNLP:
 
 	def __init__(self, model_params):
 
-		with torch.no_grad():
+		with torch.inference_mode():
 
 			start_time = time.time()
 
@@ -117,13 +125,13 @@ class EnglishBookNLP:
 					self.doQuoteAttrib=True
 
 			tagsetPath="data/entity_cat.tagset"
-			tagsetPath = pkg_resources.resource_filename(__name__, tagsetPath)
+			tagsetPath = os.path.join(os.path.dirname(__file__), tagsetPath)
 
 
 			if "referential_gender_hyperparameterFile" in model_params:
 				self.gender_hyperparameterFile=model_params["referential_gender_hyperparameterFile"]
 			else:
-				self.gender_hyperparameterFile = pkg_resources.resource_filename(__name__, "data/gutenberg_prop_gender_terms.txt")
+				self.gender_hyperparameterFile = os.path.join(os.path.dirname(__file__), "data", "gutenberg_prop_gender_terms.txt")
 			
 			pronominalCorefOnly=True
 
@@ -146,7 +154,7 @@ class EnglishBookNLP:
 
 			if self.doEntities:
 				self.entityTagger=LitBankEntityTagger(self.entityPath, tagsetPath)
-				aliasPath = pkg_resources.resource_filename(__name__, "data/aliases.txt")
+				aliasPath = os.path.join(os.path.dirname(__file__), "data", "aliases.txt")
 				self.name_resolver=NameCoref(aliasPath)
 
 
@@ -331,7 +339,7 @@ class EnglishBookNLP:
 
 	def process(self, filename, outFolder, idd):		
 
-		with torch.no_grad():
+		with torch.inference_mode():
 
 			start_time = time.time()
 			originalTime=start_time
@@ -408,20 +416,20 @@ class EnglishBookNLP:
 							in_quotes.append(0)
 
 
-					# Create entity for first-person narrator, if present
+					# 为第一人称叙述者（I/me/my）创建实体（若存在）
 					refs=self.name_resolver.cluster_narrator(entities, in_quotes, tokens)
 				
-					# Cluster non-PER PROP mentions that are identical
+					# 聚类完全相同的非 PER 专有名 mention（如地名/机构名）
 					refs=self.name_resolver.cluster_identical_propers(entities, refs)
 
-					# Cluster mentions of named people
+					# 聚类人名 mention（Tom/Tom Sawyer/Mr. Sawyer -> 同一 ID）
 					refs=self.name_resolver.cluster_only_nouns(entities, refs, tokens)
 
 					print("--- name coref: %.3f seconds ---" % (time.time() - start_time))
 
 					start_time=time.time()
 
-					# Infer referential gender from he/she/they mentions around characters
+					# 基于代词（he/she/they）推断每个角色的指称性别
 					
 					genderEM=GenderEM(tokens=tokens, entities=entities, refs=refs, genders=self.gender_cats, hyperparameterFile=self.gender_hyperparameterFile)
 					genders=genderEM.tag(entities, tokens, refs)

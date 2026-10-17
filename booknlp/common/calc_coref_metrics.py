@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+共指指标计算辅助脚本：调用外部 scorer（perl）计算 CONLL/B3 等指标。
+"""
 import subprocess, re, sys
 
 def get_coref_score(metric, path_to_scorer, gold=None, preds=None):

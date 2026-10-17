@@ -1,10 +1,20 @@
+# -*- coding: utf-8 -*-
+"""
+共指消解模块（LitBankCoref）。
+
+对 NLP 小白的解释：
+- 共指消解：判断哪些 mention（实体片段）指代同一真实世界实体，并分配相同 ID。
+- 本模块加载训练好的 BERT 共指模型（BERTCorefTagger），把全文实体转换为模型输入，运行前向得到 assignments（每个实体的共指 ID），再用 NameCoref 合并普通名词 mention。
+
+流程：convert_data（文本->句子/实体） -> test（模型推理 + 名字聚类） -> 返回 assignments。
+"""
 import torch, sys, re
 
 from booknlp.english.bert_coref_quote_pronouns import BERTCorefTagger
 import numpy as np
 from booknlp.common.pipelines import Entity
 from booknlp.english.name_coref import NameCoref
-import pkg_resources
+import os
 
 class LitBankCoref:
 
@@ -16,7 +26,7 @@ class LitBankCoref:
 		base_model=re.sub(".model", "", base_model)
 
 		self.model = BERTCorefTagger(gender_cats=gender_cats, freeze_bert=True, base_model=base_model, pronominalCorefOnly=pronominalCorefOnly)
-		self.model.load_state_dict(torch.load(modelFile, map_location=device))
+		self.model.load_state_dict(torch.load(modelFile, map_location=device, weights_only=False), strict=False)
 		self.model.to(device)
 		self.model.eval()
 
@@ -43,7 +53,7 @@ class LitBankCoref:
 		
 		assignments=self.model.forward(test_matrix, test_index, existing=refs, token_positions=test_token_positions, starts=test_starts, ends=test_ends, widths=test_widths, input_ids=test_data, attention_mask=test_masks, transforms=test_transforms, ref_genders=ref_gender, entities=global_entities)
 		
-		aliasFile = pkg_resources.resource_filename(__name__, "data/aliases.txt")
+		aliasFile = os.path.join(os.path.dirname(__file__), "data", "aliases.txt")
 
 		nameCoref=NameCoref(aliasFile)
 

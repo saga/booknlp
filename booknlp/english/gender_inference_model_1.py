@@ -15,6 +15,7 @@ This method encodes several assumptions:
 """
 
 
+# -*- coding: utf-8 -*-
 # requires scipy==1.5.4
 from collections import Counter
 import sys

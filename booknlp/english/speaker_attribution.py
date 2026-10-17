@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+"""
+说话人归属模型定义（BERTSpeakerID）。
+
+对 NLP 小白的解释：
+- 输入：引语上下文 + 候选实体/引语列表。
+- 模型：BERT 编码文本，再用打分层给每个候选打分，选择最高分作为说话人。
+- 训练时使用交叉熵损失；推理时 argmax。
+"""
 import sys
 import re
 import random
@@ -26,8 +35,8 @@ class BERTSpeakerID(nn.Module):
 
 		modelName=base_model
 		modelName=re.sub("^speaker_", "", modelName)
-		modelName=re.sub("-v\d.*$", "", modelName)
-		matcher=re.search(".*-(\d+)_H-(\d+)_A-.*", modelName)
+		modelName=re.sub(r"-v\d.*$", "", modelName)
+		matcher=re.search(r".*-(\d+)_H-(\d+)_A-.*", modelName)
 		bert_dim=0
 		modelSize=0
 		self.num_layers=0
@@ -198,7 +207,7 @@ class BERTSpeakerID(nn.Module):
 		gold_eids={}
 		pred_eids={}
 
-		with torch.no_grad():
+		with torch.inference_mode():
 
 			idd=0
 			for x1, m1, y1, o1 in zip(dev_x_batches, dev_m_batches, dev_y_batches, dev_o_batches):

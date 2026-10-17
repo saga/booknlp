@@ -1,5 +1,13 @@
 import sys
 
+# -*- coding: utf-8 -*-
+"""
+B-cubed（B3）共指评估指标。
+
+对 NLP 小白的解释：
+- 共指评估：比较系统输出的共指簇与人工标注的 gold 簇。
+- B3：对每个 mention 计算精确率/召回率，再取平均，避免大簇主导。
+"""
 def b3(gold, system):
 
 	goldClusters={}

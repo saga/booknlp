@@ -1,3 +1,14 @@
+# -*- coding: utf-8 -*-
+"""
+引语处理模块：QuoteTagger + QuotationAttribution。
+
+- QuoteTagger：基于引号符号检测引语边界（", ', — 等），标记 token.inQuote。
+- QuotationAttribution：对每个引语，用 BERT 从上下文候选（实体/其它引语）中选择说话人。
+
+对 NLP 小白的解释：
+- 引语（quote）：直接引语，如 "Yes," she said。
+- 说话人归属（attribution）：判断这句引语是谁说的。
+"""
 import re
 from collections import Counter
 

@@ -1,4 +1,12 @@
 import sys
+# -*- coding: utf-8 -*-
+"""
+序列标注评估模块（sequence_eval）。
+
+对 NLP 小白的解释：
+- 计算 span 级别的精确率/召回率/F1。
+- 支持子类别（如 PER/FAC）的评估。
+"""
 import numpy as np
 
 def get_accuracy(golds, preds, tagset):

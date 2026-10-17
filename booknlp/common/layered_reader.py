@@ -1,4 +1,14 @@
 import numpy as np
+# -*- coding: utf-8 -*-
+"""
+分层 NER 批处理模块（layered_reader）。
+
+对 NLP 小白的解释：
+- BERT 最多处理 512 token，但整句/整段可能更长，需要切分与 padding。
+- 本模块把句子打包成 batch，生成 input_ids/attention_mask/transforms（把 BERT 子词映射回词级）。
+- transforms：矩阵，用于把 BERT 的子词级向量聚合/池化到词级。
+- layered：分层 NER 需要多层标签（layer1/2/3），本模块也处理层间合并矩阵。
+"""
 import torch
 
 def get_batches(model, sentences, max_batch, tagset, training=True):

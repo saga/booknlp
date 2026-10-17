@@ -1,14 +1,20 @@
+# -*- coding: utf-8 -*-
 """
-https://raw.githubusercontent.com/kaniblu/pytorch-bilstmcrf/master/model.py
-MIT License
+条件随机场（CRF）模块，用于序列标注（如 NER、超义）中的标签转移约束。
 
+对 NLP 小白的解释：
+- 序列标注：给句子中每个词打标签（如 B-PER/I-PER/O）。
+- CRF：在神经网络输出的每个位置分数基础上，学习"标签之间的转移"合理性，
+  例如 B-PER 后面更可能跟 I-PER，而不会出现 O 后直接 I-PER。
+- 这里实现的是线性链 CRF：前向算法计算配分函数，Viterbi 解码最优路径。
+
+原始来源：https://raw.githubusercontent.com/kaniblu/pytorch-bilstmcrf/master/model.py (MIT License)
 """
 
 import torch
 import torch.nn as nn
 import torch.nn.init as I
 import torch.nn.utils.rnn as R
-from torch.autograd import Variable
 
 def log_sum_exp(vec, dim=0):
 	max, idx = torch.max(vec, dim)
@@ -39,7 +45,7 @@ class CRF(nn.Module):
 		batch_size, seq_len, n_labels = logits.size()
 		alpha = logits.data.new(batch_size, self.n_labels).fill_(-10000)
 		alpha[:, self.start_idx] = 0
-		alpha = Variable(alpha)
+		alpha = alpha
 		c_lens = lens.clone()
 
 		logits_t = logits.transpose(1, 0)
@@ -73,7 +79,7 @@ class CRF(nn.Module):
 		batch_size, seq_len, n_labels = logits.size()
 		vit = logits.data.new(batch_size, self.n_labels).fill_(-10000)
 		vit[:, self.start_idx] = 0
-		vit = Variable(vit)
+		vit = vit
 		c_lens = lens.clone()
 
 		logits_t = logits.transpose(1, 0)
@@ -123,11 +129,11 @@ class CRF(nn.Module):
 		batch_size, seq_len = labels.size()
 
 		# pad labels with <start> and <stop> indices
-		labels_ext = Variable(labels.data.new(batch_size, seq_len + 2))
+		labels_ext = labels.data.new(batch_size, seq_len + 2)
 		labels_ext[:, 0] = self.start_idx
 		labels_ext[:, 1:-1] = labels
 		mask = self.sequence_mask(lens + 1, max_len=seq_len + 2).long()
-		pad_stop = Variable(labels.data.new(1).fill_(self.stop_idx))
+		pad_stop = labels.data.new(1).fill_(self.stop_idx)
 		pad_stop = pad_stop.unsqueeze(-1).expand(batch_size, seq_len + 2)
 		labels_ext = (1 - mask) * pad_stop + mask * labels_ext
 		labels = labels_ext
@@ -180,7 +186,7 @@ class CRF(nn.Module):
 
 		ranges = torch.arange(0, max_len).long()
 		ranges = ranges.unsqueeze(0).expand(batch_size, max_len)
-		ranges = Variable(ranges)
+		ranges = ranges
 
 		if lens.data.is_cuda:
 			ranges = ranges.cuda()
