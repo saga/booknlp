@@ -3,15 +3,21 @@ name = "booknlp"
 version = "1.0.8"
 description = "BookNLP: NLP pipeline for books and long documents"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 license = { text = "MIT" }
 dependencies = [
-    "torch>=2.14",
-    "transformers>=4.40",
-    "spacy>=3.7",
-    "numpy>=2.0",
+    "torch>=2.2,<3",
+    "transformers>=4.40,<5",
+    "spacy>=3.7,<4",
+    "numpy>=2.0,<3",
     "httpx[socks]>=0.28.1",
 ]
+
+[project.optional-dependencies]
+# Maverick requires sentencepiece and is best tested with Transformers 4.x.
+coref = ["maverick-coref==1.0.7"]
+# Optional mention extraction; GLiNER is not a coreference resolver.
+ner = ["gliner>=0.2,<1"]
 
 [build-system]
 requires = ["hatchling"]
