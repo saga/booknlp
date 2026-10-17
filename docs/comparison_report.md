@@ -39,3 +39,7 @@ Baseline 统计：
 - 在非 LLM 条件下，Maverick/ImCoref 相比 BookNLP 的 BERT 共指有约 **+2~+4 点** Avg.F1 提升（LitBank）。
 - 要在本仓库中实际跑出新方案数据，需要：降低 Python 到 3.10/3.11、使用 transformers 4.x、并完成 Maverick 与 BookNLP 流水线的适配（mention/coref ID 对齐）。
 - 建议后续在兼容环境中完成端到端对比实验。
+
+## 5. 后续方案分析
+
+由于 Maverick 在当前 Python 3.14 / Apple Silicon 环境下无法完成端到端运行，替代模型、整本小说的跨章节共指、隔离 Python 环境与本地 LLM 补充策略，另见 [macOS / Python 3.14 共指消解替代方案分析](coreference_alternatives_macos_python314.md)。该报告区分了官方依赖声明与本机实测结果；替代方案的 M5 性能仍需 POC 验证。
