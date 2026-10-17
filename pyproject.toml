@@ -3,7 +3,7 @@ name = "booknlp"
 version = "1.0.8"
 description = "BookNLP: NLP pipeline for books and long documents"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
     "torch>=2.14",
