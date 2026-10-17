@@ -59,7 +59,10 @@ uv run python -m spacy download en_core_web_sm
 
 ~~~bash
 uv sync --extra coref
+uv run python examples/run_maverick_coref.py
 ~~~
+
+仓库同时提供 examples/run_maverick_coref.py，默认读取 881-token 短样本并把 tokens、字符跨度和 cluster 输出写入 outputs/maverick-pride-short.json。可用 --input 和 --output 指定章节文件与目标路径。
 
 对短文本的最小推理示例（使用官方接口，CPU 作为 M5 初始基线）：
 
