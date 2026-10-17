@@ -8,7 +8,7 @@
 
 **切换到 Python 3.12 后，Maverick 值得重新尝试。** 官方 maverick-coref 包声明支持 Python 3.8+，而此前失败的两个主要问题分别是 Python 3.14 下构建 sentencepiece==0.2.0，以及 Transformers 5.x 对 DeBERTa-v3 SentencePiece tokenizer 的兼容问题。当前仓库已经改为 Python 3.12，并把 Transformers 限制到 4.x；Maverick 作为可选依赖，不强迫所有使用者安装。
 
-本次仅完成仓库元数据和文档改造，**没有在 MacBook Air M5 上实际创建环境或运行模型**。所以“更容易安装”有官方依赖声明依据，但是否能完整运行、MPS 是否可用、推理速度和小说质量仍待 POC 验证。
+仓库现有比较报告已经记录了 Python 3.12 环境下的短文本统计（Maverick 160 mentions / 16 clusters），但没有同时记录完整依赖快照、资源占用或 gold-label 评分。本轮没有在实际 MacBook Air M5 上独立重跑，因此把这些数量视为已有记录，而非本轮复现结果。Python 3.12 与 Transformers 4.x 的兼容性依据来自官方依赖声明；完整安装、MPS、性能及小说级质量仍需按下述 POC 重验。
 
 推荐顺序：
 
