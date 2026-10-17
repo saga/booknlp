@@ -192,6 +192,7 @@ uv python install 3.12
 uv venv --python 3.12 .venv-xcore
 source .venv-xcore/bin/activate
 python -m pip install --upgrade pip
+python -m pip install torch  # Apple Silicon wheel; verify MPS separately
 
 git clone https://github.com/SapienzaNLP/xcore.git
 cd xcore
