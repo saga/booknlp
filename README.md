@@ -29,12 +29,27 @@ GPU time, Titan RTX (mins.)*|2.1|2.2|
 
 ## Installation
 
-This project is managed with [uv](https://github.com/astral-sh/uv). Python 3.14+ is required.
+This project is managed with [uv](https://github.com/astral-sh/uv) and targets **Python 3.12**. The Python version is pinned in `.python-version`. Transformers is constrained to `>=4.40,<5` to avoid the Transformers 5.x tokenizer changes that broke the Maverick experiment.
 
 ```sh
+uv python install 3.12
 uv sync
 uv run python -m spacy download en_core_web_sm
 ```
+
+To install the optional Maverick coreference backend:
+
+```sh
+uv sync --extra coref
+```
+
+To install optional GLiNER entity/mention extraction (not coreference resolution):
+
+```sh
+uv sync --extra ner
+```
+
+For both optional backends, use `uv sync --extra coref --extra ner`. After changing the Python constraint or dependencies, regenerate the lock on a machine with package-index access using `uv lock`, then run `uv sync`. The previous lock file was resolved exclusively for Python 3.14 and should not be reused for Python 3.12.
 
 If using a GPU, install the appropriate PyTorch build following the instructions on [https://pytorch.org](https://pytorch.org).
 
