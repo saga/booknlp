@@ -167,6 +167,19 @@ class EnglishBookNLP:
 
 			self.tagger=SpacyPipeline(spacy_nlp)
 
+			# 可选：使用 torch.compile 加速推理（需要 PyTorch 2+）
+			if model_params.get("compile", False):
+				try:
+					if self.doEntities:
+						self.entityTagger.model = torch.compile(self.entityTagger.model)
+					if self.doQuoteAttrib:
+						self.quote_attrib.model = torch.compile(self.quote_attrib.model)
+					if self.doCoref:
+						self.litbank_coref.model = torch.compile(self.litbank_coref.model)
+					print("torch.compile enabled")
+				except Exception as e:
+					print("torch.compile failed: %s" % e)
+
 			print("--- startup: %.3f seconds ---" % (time.time() - start_time))
 
 	def get_syntax(self, tokens, entities, assignments, genders):

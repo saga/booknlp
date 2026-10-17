@@ -59,7 +59,7 @@ def proc():
 
     # 默认使用全流水线 + small 模型
     model_params = {
-        "pipeline": "entity,quote,supersense,event,coref", "model": "small",
+        "pipeline": "entity,quote,supersense,event,coref", "model": "big",
     }
 
     booknlp = BookNLP(language, model_params)
